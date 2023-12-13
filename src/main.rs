@@ -58,28 +58,34 @@ fn string_path(a: &str, b: &str) -> String {
     PathBuf::from(a).join(b).display().to_string()
 }
 
-fn run() -> tokio::process::Child {
+async fn run() -> tokio::process::Child {
     let binary_path = string_path(BINARY_DIR, platform::BINARY);
     let model_path = MODEL.to_owned();
     ensure("KataGo binary".to_owned(), &binary_path, move |path| {
-        let binary_zip = if use_gpu_binary() {
-            platform::BINARY_GPU_ZIP
-        } else {
-            platform::BINARY_CPU_ZIP
-        };
-        println!("Downloading KataGo");
-        download_file(BINARIES_URL.to_owned() + binary_zip, binary_zip)?;
-        println!("Unpacking KataGo");
-        unzip(binary_zip, BINARY_DIR).map_err(DownloadError::IO)?;
-        println!("Removing Zip");
-        std::fs::remove_file(binary_zip).map_err(DownloadError::IO)?;
-        println!("Setting execution permission");
-        set_exe_permission(path).map_err(DownloadError::IO)
-    });
+        Box::pin(async move {
+            let binary_zip = if use_gpu_binary() {
+                platform::BINARY_GPU_ZIP
+            } else {
+                platform::BINARY_CPU_ZIP
+            };
+            println!("Downloading KataGo");
+            download_file(BINARIES_URL.to_owned() + binary_zip, binary_zip).await?;
+            println!("Unpacking KataGo");
+            unzip(binary_zip, BINARY_DIR).map_err(DownloadError::IO)?;
+            println!("Removing Zip");
+            std::fs::remove_file(binary_zip).map_err(DownloadError::IO)?;
+            println!("Setting execution permission");
+            set_exe_permission(&path).map_err(DownloadError::IO)
+        })
+    })
+    .await;
     ensure(format!("Model {MODEL}"), &model_path, move |_| {
-        println!("Downloading model {MODEL}");
-        download_file(MODELS_URL.to_owned() + MODEL, MODEL)
-    });
+        Box::pin(async move {
+            println!("Downloading model {MODEL}");
+            download_file(MODELS_URL.to_owned() + MODEL, MODEL).await
+        })
+    })
+    .await;
     let config = string_path(BINARY_DIR, "analysis_example.cfg");
     let child = Command::new(format!("./{binary_path}"))
         .arg("analysis")
@@ -154,5 +160,5 @@ async fn communicate(mut binary: tokio::process::Child) {
 
 #[tokio::main]
 async fn main() {
-    communicate(run()).await;
+    communicate(run().await).await;
 }

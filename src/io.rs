@@ -3,7 +3,6 @@ use std::{
     io::{copy, Write},
     path::Path,
 };
-use tokio::runtime::Runtime;
 use zip::ZipArchive;
 
 #[derive(Debug)]
@@ -12,17 +11,13 @@ pub enum DownloadError {
     IO(std::io::Error),
 }
 
-pub fn download_file(url: String, file_path: &str) -> Result<(), DownloadError> {
+pub async fn download_file(url: String, file_path: &str) -> Result<(), DownloadError> {
     use DownloadError::*;
-    Runtime::new()
-        .expect("Failed to create tokio runtime")
-        .block_on(async {
-            let response = reqwest::get(url).await.map_err(Reqwest)?;
-            let bytes = response.bytes().await.map_err(DownloadError::Reqwest)?;
-            let mut file = create_file(file_path).map_err(IO)?;
-            file.write_all(&bytes).map_err(IO)?;
-            Ok(())
-        })
+    let response = reqwest::get(url).await.map_err(Reqwest)?;
+    let bytes = response.bytes().await.map_err(DownloadError::Reqwest)?;
+    let mut file = create_file(file_path).map_err(IO)?;
+    file.write_all(&bytes).map_err(IO)?;
+    Ok(())
 }
 
 pub fn create_file(file_path: &str) -> Result<File, std::io::Error> {
@@ -57,14 +52,23 @@ pub fn unzip(zip_path: &str, dir: &str) -> Result<(), std::io::Error> {
     Ok(())
 }
 
-pub fn ensure<D>(name: String, path: &String, download: D)
+use std::future::Future;
+use std::pin::Pin;
+
+type F<T> = Pin<Box<dyn Future<Output = T>>>;
+
+pub async fn ensure<D>(name: String, path: &String, download: D)
 where
-    D: Fn(&String) -> Result<(), DownloadError>,
+    D: Fn(String) -> F<Result<(), DownloadError>>,
 {
-    match metadata(path).or_else(|_| {
-        download(path)?;
+    let metadata_result = async {
+        if let Ok(metadata) = metadata(path) {
+            return Ok(metadata);
+        }
+        download(path.clone()).await?;
         metadata(path).map_err(DownloadError::IO)
-    }) {
+    };
+    match metadata_result.await {
         Err(download_error) => println!("{:?}", download_error),
         _ => println!("{name} found"),
     }
