@@ -61,34 +61,25 @@ fn string_path(a: &str, b: &str) -> String {
 fn run() -> tokio::process::Child {
     let binary_path = string_path(BINARY_DIR, platform::BINARY);
     let model_path = MODEL.to_owned();
-    ensure(
-        "KataGo binary".to_owned(),
-        &binary_path,
-        //Box<async move |path|>
-        move |path| {
-            let binary_zip = if use_gpu_binary() {
-                platform::BINARY_GPU_ZIP
-            } else {
-                platform::BINARY_CPU_ZIP
-            };
-            println!("Downloading KataGo");
-            download_file(BINARIES_URL.to_owned() + binary_zip, binary_zip)?;
-            println!("Unpacking KataGo");
-            unzip(binary_zip, BINARY_DIR).map_err(DownloadError::IO)?;
-            println!("Removing Zip");
-            std::fs::remove_file(binary_zip).map_err(DownloadError::IO)?;
-            println!("Setting execution permission");
-            set_exe_permission(path).map_err(DownloadError::IO)
-        },
-    );
-    ensure(
-        format!("Model {MODEL}"),
-        &model_path, //Box<async move |_|>
-        move |_| {
-            println!("Downloading model {MODEL}");
-            download_file(MODELS_URL.to_owned() + MODEL, MODEL)
-        },
-    );
+    ensure("KataGo binary".to_owned(), &binary_path, move |path| {
+        let binary_zip = if use_gpu_binary() {
+            platform::BINARY_GPU_ZIP
+        } else {
+            platform::BINARY_CPU_ZIP
+        };
+        println!("Downloading KataGo");
+        download_file(BINARIES_URL.to_owned() + binary_zip, binary_zip)?;
+        println!("Unpacking KataGo");
+        unzip(binary_zip, BINARY_DIR).map_err(DownloadError::IO)?;
+        println!("Removing Zip");
+        std::fs::remove_file(binary_zip).map_err(DownloadError::IO)?;
+        println!("Setting execution permission");
+        set_exe_permission(path).map_err(DownloadError::IO)
+    });
+    ensure(format!("Model {MODEL}"), &model_path, move |_| {
+        println!("Downloading model {MODEL}");
+        download_file(MODELS_URL.to_owned() + MODEL, MODEL)
+    });
     let config = string_path(BINARY_DIR, "analysis_example.cfg");
     let child = Command::new(format!("./{binary_path}"))
         .arg("analysis")
