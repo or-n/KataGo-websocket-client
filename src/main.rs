@@ -6,7 +6,6 @@ use futures::{
     SinkExt, StreamExt,
 };
 use io::*;
-use std::path::PathBuf;
 use std::process::Stdio;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::process::{ChildStdin, ChildStdout, Command};
@@ -52,10 +51,6 @@ fn use_gpu_binary() -> bool {
             use_gpu_binary()
         }
     }
-}
-
-fn string_path(a: &str, b: &str) -> String {
-    PathBuf::from(a).join(b).display().to_string()
 }
 
 async fn run() -> tokio::process::Child {

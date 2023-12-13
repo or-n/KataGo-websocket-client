@@ -1,7 +1,7 @@
 use std::{
     fs::{create_dir_all, metadata, File},
     io::{copy, Write},
-    path::Path,
+    path::{Path, PathBuf},
 };
 use zip::ZipArchive;
 
@@ -46,10 +46,14 @@ pub fn unzip(zip_path: &str, dir: &str) -> Result<(), std::io::Error> {
     create_dir_all(dir)?;
     for i in 0..archive.len() {
         let mut file = archive.by_index(i)?;
-        let path = format!("{}/{}", dir, file.mangled_name().display());
+        let path = string_path(dir, file.mangled_name().display().to_string());
         copy(&mut file, &mut create_file(&path)?)?;
     }
     Ok(())
+}
+
+pub fn string_path(a: &str, b: impl AsRef<Path>) -> String {
+    PathBuf::from(a).join(b).display().to_string()
 }
 
 use std::future::Future;
